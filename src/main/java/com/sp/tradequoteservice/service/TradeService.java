@@ -1,6 +1,7 @@
-package com.sp.tradequoteservice;
+package com.sp.tradequoteservice.service;
 
 import com.sp.tradequoteservice.model.Output;
+import com.sp.tradequoteservice.model.Publisher;
 import com.sp.tradequoteservice.model.Trade;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +22,7 @@ public class TradeService {
     private final long MAX_CACHE_SIZE = 1000000L;
     private final Object DUMMY = new Object();
     private final QuoteService quoteService;
-    private final OutputService outputService;
+    private final Publisher outputService;
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     private final Map<Trade, Object> unprocessedTrades =
@@ -31,7 +32,7 @@ public class TradeService {
                         protected boolean removeEldestEntry(Map.Entry<Trade, Object> entry) {
                             boolean thresholdExceeded = size() > MAX_CACHE_SIZE;
                             if (thresholdExceeded) {
-                                log.error("Removing least recently inserted trade from cache to avoid memory failure.\n", entry.getKey());
+                                log.error("Removing least recently inserted trade from cache to avoid memory failure. {}\n", entry.getKey());
                                 //In addition to logging details, we should write this exception to persistent store to be analyzed and processed
                                 //in an exception workflow.
                             }
@@ -50,7 +51,7 @@ public class TradeService {
         }
     };
 
-    public TradeService(QuoteService quoteService, OutputService outputService) {
+    public TradeService(QuoteService quoteService, Publisher outputService) {
         this.quoteService = quoteService;
         this.outputService = outputService;
     }

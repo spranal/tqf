@@ -1,13 +1,14 @@
-package com.sp.tradequoteservice;
+package com.sp.tradequoteservice.service;
 
 import com.sp.tradequoteservice.model.Message;
 import com.sp.tradequoteservice.model.Output;
+import com.sp.tradequoteservice.model.Publisher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 
 @Service
-public class OutputService {
+public class OutputService implements Publisher {
     private static final Logger log = LogManager.getLogger(OutputService.class);
 
     public void publish(Message out) {

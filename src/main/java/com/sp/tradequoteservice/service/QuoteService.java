@@ -1,4 +1,4 @@
-package com.sp.tradequoteservice;
+package com.sp.tradequoteservice.service;
 
 import com.sp.tradequoteservice.model.Quote;
 import org.apache.logging.log4j.LogManager;

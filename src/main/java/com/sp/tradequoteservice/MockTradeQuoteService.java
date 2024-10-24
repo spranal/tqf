@@ -2,6 +2,8 @@ package com.sp.tradequoteservice;
 
 import com.sp.tradequoteservice.model.Quote;
 import com.sp.tradequoteservice.model.Trade;
+import com.sp.tradequoteservice.service.QuoteService;
+import com.sp.tradequoteservice.service.TradeService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
@@ -17,7 +19,7 @@ public class MockTradeQuoteService {
     private static final Logger log = LogManager.getLogger(MockTradeQuoteService.class);
     private QuoteService quoteService;
     private TradeService tradeService;
-    private final int MOCK_DATA_SIZE = 50;
+    private final int MOCK_DATA_SIZE = 100;
     private final int MOCK_BID_VOL = 100000;
     private final int MOCK_ASK_VOL = 150000;
     private final int MOCK_TRADE_VOL = 100;
@@ -36,7 +38,7 @@ public class MockTradeQuoteService {
         for(Quote quote : MOCK_QUOTES) {
             try {
                 log.info("Pumping quote no {}", QUOTE_FEED_COUNTER.getAndIncrement());
-                Thread.sleep(random.nextInt(500));
+                Thread.sleep(random.nextInt(250));
                 quoteService.onMessage(quote);
             } catch (InterruptedException e) {
                 log.error("Quote feed task threw exception", e);
@@ -52,7 +54,7 @@ public class MockTradeQuoteService {
             try {
                 log.info("Pumping trade no {}", TRADE_FEED_COUNTER.getAndIncrement());
                 tradeService.onMessage(trade);
-                Thread.sleep(random.nextInt(500));
+                Thread.sleep(random.nextInt(250));
             } catch (Exception e) {
                 log.error("Trade feed task threw exception", e);
                 throw new RuntimeException(e);
