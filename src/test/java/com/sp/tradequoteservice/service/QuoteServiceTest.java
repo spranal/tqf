@@ -18,10 +18,11 @@ class QuoteServiceTest {
     private final String TEST_CUST_ID = "TEST_CUST";
     private QuoteService quoteService;
     private final Random random = new Random();
+    private final ExceptionService exceptionService = new ExceptionService();
 
     @BeforeEach
     void setQuoteService() {
-        quoteService = new QuoteService();
+        quoteService = new QuoteService(exceptionService);
     }
 
     @Test

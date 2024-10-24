@@ -1,6 +1,8 @@
 package com.sp.tradequoteservice.service;
 
+import com.sp.tradequoteservice.model.Publisher;
 import com.sp.tradequoteservice.model.Quote;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
@@ -10,33 +12,57 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class QuoteService {
     private static final Logger log = LogManager.getLogger(QuoteService.class);
-    private final long MAX_CACHE_SIZE = 1000000L; //this should be set according to the throughput of the quote feed
+    private final long MAX_CACHE_SIZE = 1000000L;//this should be set according to the throughput of the quote feed
                                                   //so that the candidate entries are stale enough that its unlikely that a
                                                   //trade would arrive on this quote anymore
+    private Publisher exceptionService;
+    private final ConcurrentLinkedQueue<Quote> archivalQuoteQueue = new ConcurrentLinkedQueue<>();
+    private final ScheduledExecutorService archivalExecutorService = Executors.newSingleThreadScheduledExecutor();
+
     private final Map<Long, Map<String, Quote>> quoteStore =
             Collections.synchronizedMap(
                     new LinkedHashMap<>() {
                         @Override
                         protected boolean removeEldestEntry(Map.Entry<Long, Map<String, Quote>> entry) {
                             boolean thresholdExceeded = size() > MAX_CACHE_SIZE;
+                            //In addition to logging details, we should write this to persistent/archive store to be used in
+                            //the analysis and processing of trade feed exception workflow where we look at trades that were
+                            //not sent out due to unavailability of corresponding quote
                             if (thresholdExceeded) {
-                                log.info("Removing stale quote with timestamp {} from cache to remain bounded.\n", entry.getKey());
-                                log.info("Quote Details: ");
-                                for (Quote quote : entry.getValue().values()) {
-                                    log.info(quote);
+                                try {
+                                    log.info("Removing stale quote with timestamp {} from cache to remain bounded.\n", entry.getKey());
+                                    log.info("Quote Details: ");
+                                    for (Quote quote : entry.getValue().values()) {
+                                        log.info(quote);
+                                        archivalQuoteQueue.add(SerializationUtils.clone(quote));
+                                    }
+                                } catch (Throwable t) {
+                                    log.error("Adding quote to the archival queue failed with exception ", t);
                                 }
-                                //In addition to logging details, we should write this to persistent/archive store to be used in
-                                //the analysis and processing of trade feed exception workflow where we look at trades that were
-                                //not sent out due to unavailability of corresponding quote
                             }
                             return thresholdExceeded; //This will remove the least recently inserted key
-                            //if map size exceeds threshold of 1million.
+                            //if map size exceeds set threshold.
                         }
                     });
+
+    private final Runnable ARCHIVAL_PROCESS_TASK = () -> {
+        while(!archivalQuoteQueue.isEmpty()) {
+            exceptionService.publish(archivalQuoteQueue.poll());
+        }
+    };
+
+    public QuoteService(ExceptionService exceptionService) {
+        this.exceptionService = exceptionService;
+        archivalExecutorService.scheduleWithFixedDelay(ARCHIVAL_PROCESS_TASK, 1000, 2000, TimeUnit.MILLISECONDS);
+    }
 
     public void onMessage(Quote quote) {
         if(quote != null) {
@@ -75,5 +101,9 @@ public class QuoteService {
             log.error("null instrumentId passed in for getQuote");
         }
         return null;
+    }
+
+    public void stop() {
+        archivalExecutorService.shutdown();
     }
 }

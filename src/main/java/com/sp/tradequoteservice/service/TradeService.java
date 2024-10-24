@@ -3,6 +3,7 @@ package com.sp.tradequoteservice.service;
 import com.sp.tradequoteservice.model.Output;
 import com.sp.tradequoteservice.model.Publisher;
 import com.sp.tradequoteservice.model.Trade;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +25,10 @@ public class TradeService {
     private final Object DUMMY = new Object();
     private final QuoteService quoteService;
     private final Publisher outputService;
+    private Publisher exceptionService;
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService exceptionExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private final ConcurrentLinkedQueue<Trade> exceptionTradeQueue = new ConcurrentLinkedQueue<>();
 
     private final Map<Trade, Object> unprocessedTrades =
             Collections.synchronizedMap(
@@ -32,9 +37,14 @@ public class TradeService {
                         protected boolean removeEldestEntry(Map.Entry<Trade, Object> entry) {
                             boolean thresholdExceeded = size() > MAX_CACHE_SIZE;
                             if (thresholdExceeded) {
-                                log.error("Removing least recently inserted trade from cache to avoid memory failure. {}\n", entry.getKey());
-                                //In addition to logging details, we should write this exception to persistent store to be analyzed and processed
-                                //in an exception workflow.
+                                try {
+                                    log.error("Removing least recently inserted trade from cache to avoid memory failure. {}\n", entry.getKey());
+                                    //In addition to logging details, we should write this exception to persistent store to be analyzed and processed
+                                    //in an exception workflow.
+                                    exceptionTradeQueue.add(SerializationUtils.clone(entry.getKey()));
+                                } catch (Throwable t) {
+                                    log.error("Addition of trade to exception queue failed with exception", t);
+                                }
                             }
                             return thresholdExceeded; //This will remove the least recently inserted trade if set size exceeds threshold of MAX_CACHE_SIZE.
                         }
@@ -51,13 +61,21 @@ public class TradeService {
         }
     };
 
-    public TradeService(QuoteService quoteService, Publisher outputService) {
+    private final Runnable EXCEPTION_PROCESS_TASK = () -> {
+        while(!exceptionTradeQueue.isEmpty()) {
+            exceptionService.publish(exceptionTradeQueue.poll());
+        }
+    };
+
+    public TradeService(QuoteService quoteService, OutputService outputService, ExceptionService exceptionService) {
         this.quoteService = quoteService;
         this.outputService = outputService;
+        this.exceptionService = exceptionService;
     }
 
     public void start() {
         executorService.scheduleWithFixedDelay(UNPROCESSED_TRADES_TASK, 1000, 1000, TimeUnit.MILLISECONDS);
+        exceptionExecutorService.scheduleWithFixedDelay(EXCEPTION_PROCESS_TASK, 1000, 2000, TimeUnit.MILLISECONDS);
     }
 
     public void onMessage(Trade trade) {
@@ -96,6 +114,7 @@ public class TradeService {
             processTradeOffline(unprocessedTrade);
         }
         executorService.shutdown();
+        exceptionExecutorService.shutdown();
     }
 
     private boolean processTradeOffline(Trade trade) {

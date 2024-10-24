@@ -1,9 +1,13 @@
 package com.sp.tradequoteservice.model;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
 
-public final class Output implements Message {
+public final class Output implements Message, Serializable {
+    @Serial
+    private static final long serialVersionUID = 20241024L;
     final long timeStamp;
     final String instrumentId;
     final String customerId;

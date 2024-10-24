@@ -106,6 +106,7 @@ public class MockTradeQuoteService {
 
     void stop() {
         tradeService.stop();
+        quoteService.stop();
         executorService.shutdown();
     }
 }

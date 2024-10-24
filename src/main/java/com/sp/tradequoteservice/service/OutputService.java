@@ -16,6 +16,7 @@ public class OutputService implements Publisher {
             //Implement serializing and publishing the message out as per transport
             if(out instanceof Output o) {
                 log.info("Publishing Trade Quote Output with timestamp {}: {}",o.timeStamp(), o);
+                //byte[] outBytes = SerializationUtils.serialize(o);
             } else {
                 log.error("Received message that is not of type Output");
             }
