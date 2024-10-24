@@ -83,7 +83,7 @@ public class MockTradeQuoteService {
         }
     }
 
-    void start() throws InterruptedException {
+    public void start() throws InterruptedException {
         log.info("Trades to be published: ");
         for(Trade trade : MOCK_TRADES) {
             log.info("Timestamp {}, Trade {}", trade.timeStamp(), trade);
