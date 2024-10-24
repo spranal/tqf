@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class TradeService {
     private static final Logger log = LogManager.getLogger(TradeService.class);
-    private final long MAX_CACHE_SIZE = 1000000L;
+    private long maxCacheSize = 1000000L;
     private final Object DUMMY = new Object();
     private final QuoteService quoteService;
     private final Publisher outputService;
@@ -35,7 +35,7 @@ public class TradeService {
                     new LinkedHashMap<>() {
                         @Override
                         protected boolean removeEldestEntry(Map.Entry<Trade, Object> entry) {
-                            boolean thresholdExceeded = size() > MAX_CACHE_SIZE;
+                            boolean thresholdExceeded = size() > maxCacheSize;
                             if (thresholdExceeded) {
                                 try {
                                     log.error("Removing least recently inserted trade from cache to avoid memory failure. {}\n", entry.getKey());
@@ -73,6 +73,10 @@ public class TradeService {
         this.exceptionService = exceptionService;
     }
 
+    public void setMaxCacheSize(long cacheSize) {
+        maxCacheSize = cacheSize;
+    }
+
     public void start() {
         executorService.scheduleWithFixedDelay(UNPROCESSED_TRADES_TASK, 1000, 1000, TimeUnit.MILLISECONDS);
         exceptionExecutorService.scheduleWithFixedDelay(EXCEPTION_PROCESS_TASK, 1000, 2000, TimeUnit.MILLISECONDS);
@@ -85,8 +89,8 @@ public class TradeService {
             //w/o impacting the core trade message processing flow
             unprocessedTrades.put(trade, DUMMY);
         } else {
-            //In case that the trade feed comes from a single source implying
-            //a possible 1:1 correlation between a trade and a quote, we can
+            //In case that the trade feed has a possible 1:1 correlation
+            // between a trade and a quote, we can
             //remove the entries from the quote store as soon as the trade
             //is processed
             //quoteService.cleanupProcessedQuote();???
@@ -130,5 +134,13 @@ public class TradeService {
                     trade.timeStamp(), trade.instrumentId());
         }
         return false;
+    }
+
+    public int getUnprocessedTradeCount() {
+        return unprocessedTrades.size();
+    }
+
+    public int getExceptionTradeCount() {
+        return exceptionTradeQueue.size();
     }
 }
